@@ -103,15 +103,9 @@ def optimize_acqf_and_get_observation(func, acq_func, args,num_restarts=20, raw_
     new_x = candidates.detach()
     # exact_obj = func(new_x).unsqueeze(-1)  # add output dimension
     exact_obj = func(new_x.cpu().numpy())
-    # print(exact_obj)
-    # 2/0
-    # print("''''''''")
-    # print(exact_obj)
-    # print(func.evaluate_true(new_x))
-    # train_obj = exact_obj + NOISE_SE * torch.randn_like(exact_obj)
+
 
     end = time.time()
-    # print(end - start)
 
     return new_x, exact_obj#train_obj
 
@@ -182,53 +176,18 @@ def parse_args():
 def main_loop(args, func, minimize=True):
     # torch.manual_seed(0)
 
-    # func_org = Hartmann(dim=6, negate=True)
-    # # func_tup = (Embedded, dict(function=Hartmann(dim=6), noise_std=0.01, negate=True, dim=25))
-    # func_tup = (Embedded, dict(function=Hartmann(dim=6), noise_std=0.01, negate=True, dim=1000))
-    # # func_tup = (Embedded, dict(function=Hartmann(dim=6), noise_std=0.01, negate=True, dim=100))
-    # # func_tup = (BenchSuiteFunction, dict(negate=True, task_id='mopta'))
-    # # func_tup = (MujocoFunction, dict(negate=True, bounds=[[-1,1] * 888] , container='mujoco', task_id='ant'))
-    # func = func_tup[0](**func_tup[1])
-
-    # func, _logger = create_problem(21, dims=40, instance=1)
-    # minimize = True
-    # print(func.bounds)
-
-    # NOISE_SE = 0.05
-    # train_yvar = torch.tensor(NOISE_SE ** 2, device=device, dtype=dtype)
-
-    # bounds = torch.tensor([[0.0] * 6, [1.0] * 6], device=device, dtype=dtype)
-    # print(bounds)
-
     n = args.doe #20 #20#10#14
-    # generate initial training data
-    # print(func.bounds)
-    # print(torch.tensor([func.bounds.lb, func.bounds.ub]))
-    # print(Hartmann(dim=6, negate=True).bounds)
-    # train_x = draw_sobol_samples(
-    #     bounds=func.bounds, n=n, q=1, seed=torch.randint(0, 10000, (1,)).item()
-    # # ).squeeze(1)
-    # train_x = draw_sobol_samples(
-    #     bounds=torch.tensor(np.array([func.bounds.lb, func.bounds.ub])).to(device), n=n, q=1, seed=torch.randint(0, 10000, (1,)).item()
-    # ).squeeze(1).to(device)
-    # # exact_obj = func(train_x).unsqueeze(-1)  # add output dimension
-    # exact_obj = func(train_x.cpu().numpy())#.unsqueeze(-1)
-    # # print(exact_obj)
-    # # print(train_x)
+
 
     train_x = draw_sobol_samples(
         bounds=torch.tensor(np.array([func.bounds.lb, func.bounds.ub])), n=n, q=1, seed=torch.randint(0, 10000, (1,)).item()
     ).squeeze(1)
-    # exact_obj = func(train_x).unsqueeze(-1)  # add output dimension
     exact_obj = func(train_x.cpu().numpy())#.unsqueeze(-1)
 
     # best_observed_value = exact_obj.max().item()
     best_observed_value = max(exact_obj)
     train_obj = exact_obj #+ NOISE_SE * torch.randn_like(exact_obj)
-    # print(best_observed_value)
-    # print(train_obj)
-    # print(train_x.shape)
-    # print(train_x.shape[1])
+
 
     # best_observed = [train_obj[0].item()]
     best_observed = [train_obj[0]]
@@ -249,7 +208,6 @@ def main_loop(args, func, minimize=True):
     train_obj = torch.tensor(np.array(train_obj).reshape(-1,1)) #.to(device)
 
     mll, model = initialize_model(train_x, train_obj)
-    # 2/0
     N_BATCH = args.total-args.doe#90#40
 
     # for iteration in range(1, ((N_BATCH + 1)//args.pp)+1):
@@ -259,19 +217,11 @@ def main_loop(args, func, minimize=True):
         start = time.time()
         fit_gpytorch_mll(mll, approx_mll=True)
         end = time.time()
-        # print(end - start)
+
         ei = qLogNoisyExpectedImprovement(model=model, X_baseline=train_x)
 
         # optimize and get new observation
         new_x, new_obj = optimize_acqf_and_get_observation(func, ei, args)
-        # print(new_obj)
-
-        # update training points
-        # train_x = torch.cat([train_x, new_x])
-        # if minimize:
-        #     train_obj = torch.cat([train_obj, torch.tensor(-np.array(new_obj).reshape(-1,1)).to(device)]) #.to(device)
-        # else:
-        #     train_obj = torch.cat([train_obj, torch.tensor(np.array(new_obj).reshape(-1,1)).to(device)])#.to(device)
 
         train_x = torch.cat([train_x, new_x])
         if minimize:
@@ -279,20 +229,11 @@ def main_loop(args, func, minimize=True):
         else:
             train_obj = torch.cat([train_obj, torch.tensor(np.array(new_obj).reshape(-1,1))])#.to(device)
 
-        # if minimize is True:
-        #     train_obj = -train_obj
 
-        # update progress
-        # TODO: This only works if we assume no noise
-        # best_value = func(train_x).max().item()
-        # TODO: Ask how to handle this
 
         if new_obj[0] < best_observed[-1]:
             best_observed.append(new_obj[0])
-            # print(new_obj)
-            # print(iteration + n)
-            # # print(np.log10(func_org.optimal_value - new_obj.item()))
-            # print(new_obj[0])
+
         else:
             best_observed.append(best_observed[-1])
 
@@ -304,54 +245,12 @@ def main_loop(args, func, minimize=True):
         # indices = get_sobol_2(model, train_x, train_obj)
         indices = None
 
-        # if (iteration+1) % 10 == 0:
-        #     get_shaps(train_x, train_obj)
 
-        # get_cca(model, train_x, train_obj)
-        # print(indices)
         mll, model = initialize_model(train_x, train_obj, indices)
-        # print(model.state_dict())
-        # mll, model = initialize_model(train_x, train_obj)
 
-        # print(".", end="")
         if iteration % 2 == 0:
             print(".")
-        # if iteration % 10 == 0:
-        #     print(".")
-    # print(best_observed_value)
-    # print(best_observed)
-    # GLOBAL_MAXIMUM = func_org.optimal_value #+ 0.1 # Add possible noise
-    # print(GLOBAL_MAXIMUM)
 
-    # GLOBAL_MAXIMUM = func.optimum.y #.optimum.y
-    # print(GLOBAL_MAXIMUM)
-    #
-    # # iters = np.arange(N_BATCH + 1)
-    # iters = np.arange(start=1, stop=N_BATCH + n+1)
-    # # y_ei = np.log10(GLOBAL_MAXIMUM - np.asarray(best_observed))
-    # # y_ei = np.log10(GLOBAL_MAXIMUM - np.asarray(best_observed))
-    #
-    # # y_ei = np.log(GLOBAL_MAXIMUM - np.asarray(best_observed))
-    # # y_ei = np.log10(GLOBAL_MAXIMUM - np.asarray(best_observed))
-    # y_ei = np.asarray(best_observed)
-    # print(best_observed)
-    # #TODO: Take doe into account
-    #
-    # fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-    #
-    # ax.plot(
-    #     iters,
-    #     y_ei,
-    #     linewidth=1.5,
-    #     alpha=0.6,
-    # )
-    #
-    # # ax.set_xlabel("number of observations (beyond initial points)")
-    # ax.set_xlabel("number of observations ")
-    # ax.set_ylabel("Value")
-    # # ax.set_ylabel("Log10 Regret")
-    # # ax.set_ylabel("Log Regret")
-    # plt.show()
 
     return 0
 

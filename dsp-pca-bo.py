@@ -534,14 +534,9 @@ def main_loop(args, func, minimize=True):
         else:
             best_observed.append(best_observed[-1])
 
-    # best_observed = [best_observed_value]
-    # if minimize:
-    #     train_obj = [-i for i in train_obj]
-
     train_obj = torch.tensor(np.array(train_obj).reshape(-1,1)) #.to(device)
 
-    # mll, model = initialize_model(train_x, train_obj)
-    # 2/0
+
     N_BATCH = args.total-args.doe#90#40
 
     bound_list = []
@@ -552,46 +547,23 @@ def main_loop(args, func, minimize=True):
 
     # for iteration in range(1, ((N_BATCH + 1)//5)+1):
     for iteration in range(1, N_BATCH + 1 + 1):
-        # fit the models
 
         _pca = LinearTransform(n_components=0.95, svd_solver="full", minimize=args.minimize)
         X = _pca.fit_transform(np.array(train_x), np.array(train_obj))
         current_bounds = _compute_bounds(_pca, space)
-        # print(X)
-        # print(current_bounds)
-        # re-set the search space object for the reduced (feature) space
-        # self._search_space = RealSpace(bounds)
-        # 2/0
-        # TODO: negative train objective becuase we are
+
         mll, model = initialize_model(torch.tensor(X), train_obj)
 
         start = time.time()
         fit_gpytorch_mll(mll, approx_mll=True)
         end = time.time()
-        # print(end - start)
-        # ei = qLogNoisyExpectedImprovement(model=model, X_baseline=train_x)
-        # ei = PenalizedEI(model=model, pca=_pca, bounds=bound_list, best_f=min(train_obj), return_dx=False, maximize=True)
-        # ei = 1PenalizedEI(model=model, pca=_pca, bounds=bound_list, best_f=min(train_obj), return_dx=False,
-        #                  maximize=True)
 
-        # # optimize and get new observation
-        # new_x, new_obj = optimize_acqf_and_get_observation(func, ei, bounds=current_bounds)
-        # print(bound_list)
         bound_arr = np.array(current_bounds)
-        # print(bound_arr)
         diffs = bound_arr[:,1] - bound_arr[:,0]
-        # print(diffs)
         D = lhs(len(current_bounds), 2000) # * 2 * box_size - box_size
-        # print(D)
-        # print(diffs)
-        # D = D @ diffs.reshape(-1,1) + bound_arr[:,0]
-        # print(D)
-        D = D * diffs + bound_arr[:,0]
-        # print(D)
 
-        # f = np.array([[  0.,   1.,   4.],[  0.,   4.,  10.],[  0.,   7.,  16.]])
-        # print(f * np.array([0,2,0]) + np.array([2,2,0]))
-        # print(bound_arr[:,0])
+        D = D * diffs + bound_arr[:,0]
+
 
         v = model(torch.tensor(D))
         # var = model.likelihood(v)
@@ -600,25 +572,14 @@ def main_loop(args, func, minimize=True):
 
         def penalizedEI(x, model, bounds, pca, f_min):
             bounds_ = np.atleast_2d(bounds)
-            # print(bounds_)
-            # map back the candidate point to check if it falls inside the original domain
-            # print(X.shape)
-            # print(X)
 
             v = model(torch.tensor(x))
             f_mean = v.mean #.detach().numpy()
             f_var = v.variance #.detach().numpy()
-            # print(v)
-            # print(f_mean)
             x_ = pca.inverse_transform(x)
-            # print(x_.shape)
-            # print(x_[0, 0])
             outs = []
             for i in range(x_.shape[0]):
                 inst = x_[i]
-                # print(inst)
-                # print(torch.tensor(inst))
-                # print(inst)
 
                 idx_lower = np.nonzero(inst < bounds_[:, 0])[0]
                 idx_upper = np.nonzero(inst > bounds_[:, 1])[0]
@@ -627,18 +588,8 @@ def main_loop(args, func, minimize=True):
                         np.sum([bounds_[j, 0] - inst[j] for j in idx_lower])
                         + np.sum([inst[j] - bounds_[j, 1] for j in idx_upper])
                 )
-                # print(penalty)
-
-                # print(x[i])
-                # print(torch.tensor(x[i]).shape)
 
                 if penalty == 0:
-                    # print("Fair")
-                    # v = model(torch.tensor(x[i]))
-                    # f_mean = v.mean.detach().numpy()
-                    # f_var = v.variance.detach().numpy()
-                    # print(f_var[i])
-                    # ei = np.zeros((D_size, 1))
                     std_dev = np.sqrt(f_var[i].item())
                     if f_var[i].item() != 0:
                         # z = (f_mean[i].item() - f_max) / std_dev
@@ -650,59 +601,23 @@ def main_loop(args, func, minimize=True):
 
                     outs.append(out)
                 else:
-                    # print("Pen")
-                    # print(penalty)
                     out = torch.tensor(penalty)
                     outs.append(out)
             return torch.tensor(outs)
 
-        # TODO: check this, as im pretty sure we are minimizing, but the EI funciton here is for maximizing....
-        # ei_d = EI(len(D), max(f_s), f_mean.detach().numpy(), f_var.detach().numpy())
-        # ei_d = EI(len(D), min(f_s), -f_mean.detach().numpy(), f_var.detach().numpy())
-        # index = np.argmax(ei_d)
-
-        # stdada = Standardize(m=1)
-        # print(stdada(train_obj))
 
         stdada = Standardize(m=1)
-        # print(stdada(train_obj))
         min_f = min(stdada(torch.tensor(train_obj))[0])
         ei_d = penalizedEI(D, model, bound_list, _pca, min_f)
-        # ei_d = penalizedEI(D, model, bound_list, _pca, min(train_obj))
         index = np.argmax(ei_d)
-        # print(ei_d)
 
         candidate = _pca.inverse_transform(D[index]).clip(func.bounds.lb, func.bounds.ub)
-        # print(candidate)
 
         new_obj = func(candidate)
-        # print(new_obj)
-        # 2/0
 
-        # self._pca.inverse_transform(super().ask(n_point))
 
         train_x = torch.cat([train_x, torch.tensor([candidate])])
-        # print(train_x)
-        # print(torch.tensor([new_obj]))
         train_obj = torch.cat([train_obj, torch.tensor([[new_obj]])])
-        # print(train_obj)
-        # if minimize:
-        #     train_obj = torch.cat([train_obj, torch.tensor(-np.array(new_obj).reshape(-1,1))]) #.to(device)
-        # else:
-        #     train_obj = torch.cat([train_obj, torch.tensor(np.array(new_obj).reshape(-1,1))])#.to(device)
-
-
-        # if new_obj[0] < best_observed[-1]:
-        #     best_observed.append(new_obj[0])
-        #
-        # else:
-        #     best_observed.append(best_observed[-1])
-        #
-        #
-        # indices = None
-
-
-        # mll, model = initialize_model(train_x, train_obj, indices)
 
         if iteration % 2 == 0:
             print(".")

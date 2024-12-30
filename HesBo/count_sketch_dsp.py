@@ -156,86 +156,33 @@ def RunMain(func, low_dim=2, high_dim=25, initial_n=20, total_itr=100, func_type
     # Creating the initial points. The shape of s is nxD
     if s is None:
         s=lhs(low_dim, initial_n) * 2 * box_size - box_size
-    # print(back_projection(s,high_to_low,sign,box_size))
-    # f_s = test_func.evaluate(back_projection(s,high_to_low,sign,box_size))
-    # f_s_true = test_func.evaluate_true(back_projection(s,high_to_low,sign,box_size))
-    f_s = np.array(test_func(back_projection(s,high_to_low,sign,box_size))).reshape(-1,1)
-    # f_s_true = np.array(test_func(back_projection(s,high_to_low,sign,box_size))).reshape(-1,1)
-    # for i in range(initial_n):
-    #     best_results[0,i]=np.max(f_s_true[0:i+1])
 
-    # test_func = functions.Hartmann6(active_var, noise_var=noise_var)
-    # f_s = test_func.evaluate(back_projection(s, high_to_low, sign, box_size))
-    # print(s)
-    # print(f_s)
-    # Building and fitting a new GP model
-    # if DSP:
-    #     kern = GPy.kern.Matern52(input_dim=low_dim, ARD=True, variance=variance, lengthscale=length_scale,
-    #                              )
-    # else:
-    #     kern = GPy.kern.Matern52(input_dim=low_dim, ARD=ARD, variance=variance, lengthscale=length_scale)
-    # m = GPy.models.GPRegression(s, f_s, kernel=kern)
-    # m.likelihood.variance = 1e-3
+    f_s = np.array(test_func(back_projection(s,high_to_low,sign,box_size))).reshape(-1,1)
 
 
     # Main loop
     for i in range(total_itr):
-        # print(i)
 
         mll, model = initialize_model(s, f_s)
-        # start = time.time()
         fit_gpytorch_mll(mll, approx_mll=True)
 
-        # end = time.time()
 
-        # print(end - start)
-        # ei = qLogNoisyExpectedImprovement(model=model, X_baseline=torch.tensor(s))
-        #
-        # # optimize and get new observation
-        # new_x = optimize_acqf_and_get_observation(func, ei, low_dims=low_dim)
-        #
         start = timeit.default_timer()
-        # candidate = new_x.numpy()
-        # # print(candidate)
-        # s = np.append(s, candidate, axis=0)
-        # new_high_point=back_projection(candidate,high_to_low,sign,box_size)
-        #
-        # f_s = np.append(f_s, np.array(test_func(new_high_point)).reshape(-1,1), axis=0)
 
-        # # Updating GP model
-        # m.set_XY(s, f_s)
-        # if (i+initial_n<=25 and i % 5 == 0) or (i+initial_n>25 and i % hyper_opt_interval == 0):
-        #     m.optimize()
 
         # Maximizing acquisition function
         D = lhs(low_dim, 2000) * 2 * box_size - box_size
-        # mu, var = m.predict(D)
-        # v = model(torch.tensor(D))
-        # print(v.scale)
-        # print(dict(v))
-        # model.eval()
+
         v = model(torch.tensor(D))
-        # var = model.likelihood(v)
+
         f_mean = v.mean
         f_var = v.variance
-        # print(v.mean)
-        # print(v.variance)
-        # print(var.loc)
-        # mean = model.mean_module(torch.tensor(D))
-        # var = model.covar_module(torch.tensor(D))
-        # print(mean)
-        # print(var)
-        # 2/0
-        # TODO: check this, as im pretty sure we are minimizing, but the EI funciton here is for maximizing....
 
-        #TODO: again check this
         stdada = Standardize(m=1)
         # print(stdada(train_obj))
         max_f = max(stdada(torch.tensor(f_s))[0])
 
         ei_d = EI(len(D), max_f, f_mean.detach().numpy(), f_var.detach().numpy())
-        # ei_d = EI(len(D), max(f_s), f_mean.detach().numpy(), f_var.detach().numpy())
-        # ei_d = EI(len(D), min(f_s), -f_mean.detach().numpy(), f_var.detach().numpy())
         index = np.argmax(ei_d)
 
         # Adding the new point to our sample
@@ -246,13 +193,8 @@ def RunMain(func, low_dim=2, high_dim=25, initial_n=20, total_itr=100, func_type
 
 
         stop = timeit.default_timer()
-        # best_results[0, i + initial_n] = np.max(f_s_true)
         elapsed[0, i + initial_n]=stop-start
 
-    # if func_type == 'WalkerSpeed':
-    #     eng.quit()
-    # high_s = back_projection(s,high_to_low,sign,box_size)
-    # return best_results, elapsed, s, f_s, f_s_true, high_s
     return elapsed
 
 def optimize_acqf_and_get_observation(func, acq_func, low_dims, num_restarts=20, raw_samples=512):
@@ -309,20 +251,11 @@ if __name__=='__main__':
     # minimize = True
     for i in range(args.n_trails):
         print(f"\nStarting trail {i}")
-        # main_loop(args, func, args.minimize)
-        # func.bounds
-        # res, time, s, f_s, f_s_true, _ = RunMain(func, low_dim=3, high_dim=10, initial_n=20, total_itr=100, ARD=True,
-        #                                          noise_var=0, box_size=func.bounds.ub[0])
+
         time_el = RunMain(func, low_dim=args.low_dims, high_dim=args.dims, initial_n=args.doe, total_itr=args.total, ARD=False,
                                                  noise_var=0, box_size=func.bounds.ub[0],
                        DSP=True)
-        # print(time_el)
 
-        # print(res, time)
 
         func.reset()
-        # 2/0
     _logger.close()
-
-    # res, time, s, f_s, f_s_true, _=RunMain(low_dim=8, high_dim=25, initial_n=20, total_itr=50, ARD=True, noise_var=1)
-    # print(res,time)
