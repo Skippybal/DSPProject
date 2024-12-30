@@ -49,6 +49,8 @@ dtype = torch.double
 SMOKE_TEST = os.environ.get("SMOKE_TEST")
 print(device)
 
+np.random.seed(42)
+
 class PCABO(BO):
     """Dimensionality reduction using Principle Component Decomposition (PCA)
 
@@ -175,7 +177,7 @@ class PCABO(BO):
 def create_problem(fid: int, args):
     problem = get_problem(fid, dimension=args.dims, instance=args.instance, problem_class=ProblemClass.BBOB)
     l = logger.Analyzer(
-        root="data",
+        root="results/PCABO",
         folder_name=args.folder_name,
         algorithm_name=args.algo_name,
         algorithm_info=""
@@ -221,7 +223,7 @@ def main_loop(args, func, minimize=True):
         bound_list.append([lb, ub])
 
     space = RealSpace(bound_list)
-    print(space)
+    # print(space)
     # space = RealSpace([func.bounds.lb, func.bounds.ub])
     # space = ContinuousSpace([-5, 5]) * dim  # create the search space
 
@@ -243,9 +245,9 @@ def main_loop(args, func, minimize=True):
         search_space=space,
         obj_fun=obj_wrapper,
         # model=model,
-        DoE_size=20,  # number of initial sample points
-        max_FEs=100,  # maximal function evaluation
-        verbose=True,
+        DoE_size=args.doe,  # number of initial sample points
+        max_FEs=args.total,  # maximal function evaluation
+        verbose=False,
         n_point=1,
         n_components=0.95,
         acquisition_optimization={"optimizer": "BFGS"},

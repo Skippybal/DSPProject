@@ -9,6 +9,8 @@ import functions
 from REMBO import EI
 import timeit
 
+np.random.seed(42)
+
 def dim_sampling(low_dim, X, bx_size):
     if len(X.shape)==1:
         X=X.reshape((1, X.shape[0]))
@@ -55,6 +57,7 @@ def parse_args():
     parser.add_argument('--total', type=int, default=100)
     parser.add_argument('--instance', type=int, default=1)
     parser.add_argument('--minimize', type=bool, default=True)
+    parser.add_argument('--low_dims', type=int, default=3)
 
     return parser.parse_args()
 
@@ -62,7 +65,7 @@ def parse_args():
 def create_problem(fid: int, args):
     problem = get_problem(fid, dimension=args.dims, instance=args.instance, problem_class=ProblemClass.BBOB)
     l = logger.Analyzer(
-        root="data",
+        root="results/HeSBO",
         folder_name=args.folder_name,
         algorithm_name=args.algo_name,
         algorithm_info=""
@@ -119,7 +122,9 @@ def RunMain(func, low_dim=2, high_dim=25, initial_n=20, total_itr=100, func_type
     # else:
     #     TypeError('The input for func_type variable is invalid, which is', func_type)
     #     return
-    test_func = func
+    def prox_func(x):
+        return [-i for i in func(x)]
+    test_func = prox_func
 
     best_results = np.zeros([1, total_itr + initial_n])
     elapsed=np.zeros([1, total_itr + initial_n])
@@ -195,10 +200,11 @@ if __name__=='__main__':
         # func.bounds
         # res, time, s, f_s, f_s_true, _ = RunMain(func, low_dim=3, high_dim=10, initial_n=20, total_itr=100, ARD=True,
         #                                          noise_var=0, box_size=func.bounds.ub[0])
-        time = RunMain(func, low_dim=3, high_dim=10, initial_n=20, total_itr=100, ARD=False,
+        time = RunMain(func, low_dim=args.low_dims, high_dim=args.dims, initial_n=args.doe, total_itr=args.total, ARD=True,
                                                  noise_var=0, box_size=func.bounds.ub[0],
                        DSP=True)
-        print(time)
+        # print(time)
+
         # print(res, time)
 
         func.reset()

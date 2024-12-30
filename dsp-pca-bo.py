@@ -581,7 +581,7 @@ def main_loop(args, func, minimize=True):
         # print(bound_arr)
         diffs = bound_arr[:,1] - bound_arr[:,0]
         # print(diffs)
-        D = lhs(len(current_bounds), 20000) # * 2 * box_size - box_size
+        D = lhs(len(current_bounds), 2000) # * 2 * box_size - box_size
         # print(D)
         # print(diffs)
         # D = D @ diffs.reshape(-1,1) + bound_arr[:,0]
@@ -660,7 +660,15 @@ def main_loop(args, func, minimize=True):
         # ei_d = EI(len(D), max(f_s), f_mean.detach().numpy(), f_var.detach().numpy())
         # ei_d = EI(len(D), min(f_s), -f_mean.detach().numpy(), f_var.detach().numpy())
         # index = np.argmax(ei_d)
-        ei_d = penalizedEI(D, model, bound_list, _pca, min(train_obj))
+
+        # stdada = Standardize(m=1)
+        # print(stdada(train_obj))
+
+        stdada = Standardize(m=1)
+        # print(stdada(train_obj))
+        min_f = min(stdada(torch.tensor(train_obj))[0])
+        ei_d = penalizedEI(D, model, bound_list, _pca, min_f)
+        # ei_d = penalizedEI(D, model, bound_list, _pca, min(train_obj))
         index = np.argmax(ei_d)
         # print(ei_d)
 

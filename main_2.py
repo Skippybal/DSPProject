@@ -42,21 +42,21 @@ from matplotlib import pyplot as plt
 from gpytorch.constraints.constraints import GreaterThan
 
 # from cca_zoo.data.simulated import LinearSimulatedData
-from cca_zoo.model_selection import GridSearchCV
-from cca_zoo.nonparametric import KCCA
-
-from SALib.analyze.sobol import analyze
-from SALib.sample.sobol import sample
-from SALib.sample import saltelli, sobol
+# from cca_zoo.model_selection import GridSearchCV
+# from cca_zoo.nonparametric import KCCA
+#
+# from SALib.analyze.sobol import analyze
+# from SALib.sample.sobol import sample
+# from SALib.sample import saltelli, sobol
 
 # from Extra.bench import BenchSuiteFunction
 from Extra.mujo import MujocoFunction
 from Extra.synth import Embedded
 from scipy.stats import sobol_indices, uniform
 
-import interpret.glassbox
-import shap
-import pandas as pd
+# import interpret.glassbox
+# import shap
+# import pandas as pd
 
 from ioh import get_problem, logger, ProblemClass
 
@@ -67,7 +67,7 @@ print(device)
 
 
 # def optimize_acqf_and_get_observation(func, acq_func, num_restarts=20, raw_samples=512, NOISE_SE=0.05):
-def optimize_acqf_and_get_observation(func, acq_func, num_restarts=20, raw_samples=512):
+def optimize_acqf_and_get_observation(func, acq_func, args,num_restarts=20, raw_samples=512):
     """Optimizes the acquisition function, and returns a new candidate and a noisy observation."""
     # optimize
     # candidates, _ = optimize_acqf(
@@ -84,7 +84,7 @@ def optimize_acqf_and_get_observation(func, acq_func, num_restarts=20, raw_sampl
     candidates, _ = optimize_acqf(
         acq_function=acq_func,
         bounds=torch.tensor(np.array([func.bounds.lb, func.bounds.ub])), #.to(device),
-        q=1,#5,
+        q=args.pp, #1,#5,
         num_restarts=15,
         raw_samples=256,  # used for intialization heuristic
         retry_on_optimization_warning=False,
@@ -111,7 +111,7 @@ def optimize_acqf_and_get_observation(func, acq_func, num_restarts=20, raw_sampl
     # train_obj = exact_obj + NOISE_SE * torch.randn_like(exact_obj)
 
     end = time.time()
-    print(end - start)
+    # print(end - start)
 
     return new_x, exact_obj#train_obj
 
@@ -153,7 +153,7 @@ def initialize_model(train_x, train_obj, indices=None):
 def create_problem(fid: int, args):
     problem = get_problem(fid, dimension=args.dims, instance=args.instance, problem_class=ProblemClass.BBOB)
     l = logger.Analyzer(
-        root="data",
+        root="results/DSP",
         folder_name=args.folder_name,
         algorithm_name=args.algo_name,
         algorithm_info=""
@@ -174,6 +174,7 @@ def parse_args():
     parser.add_argument('--total', type=int, default=400)
     parser.add_argument('--instance', type=int, default=1)
     parser.add_argument('--minimize', type=bool, default=True)
+    parser.add_argument('--pp', type=int, default=1)
 
     return parser.parse_args()
 
@@ -251,17 +252,18 @@ def main_loop(args, func, minimize=True):
     # 2/0
     N_BATCH = args.total-args.doe#90#40
 
-    # for iteration in range(1, ((N_BATCH + 1)//5)+1):
-    for iteration in range(1, N_BATCH + 1 + 1):
+    # for iteration in range(1, ((N_BATCH + 1)//args.pp)+1):
+    # for iteration in range(1, N_BATCH + 1 + 1):
+    for iteration in range(1, math.ceil(N_BATCH / args.pp) + 1):
         # fit the models
         start = time.time()
         fit_gpytorch_mll(mll, approx_mll=True)
         end = time.time()
-        print(end - start)
+        # print(end - start)
         ei = qLogNoisyExpectedImprovement(model=model, X_baseline=train_x)
 
         # optimize and get new observation
-        new_x, new_obj = optimize_acqf_and_get_observation(func, ei)
+        new_x, new_obj = optimize_acqf_and_get_observation(func, ei, args)
         # print(new_obj)
 
         # update training points
